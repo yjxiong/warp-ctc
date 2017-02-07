@@ -35,17 +35,21 @@ void permute_dimension_cpu(const size_t* dims, size_t ndim, size_t num,
 
     size_t dst_idx = 0;
     for (int i = ndim - 1, p = src_idx, q = num; i >= 0; --i){
-      size_t d = dims[i];
-      q = q/d;
-      dst_idx *= d;
 
+      size_t offset;
+      size_t d;
       if (i == src_dim){
-        dst_idx += dst_dim_idx;
+        d = dims[dst_dim]; q /= d;
+        offset = dst_dim_idx;
       }else if(i == dst_dim){
-        dst_idx += src_dim_idx;
+        d = dims[src_dim]; q /= d;
+        offset = src_dim_idx;
       }else{
-        dst_idx += p / q;
+        d = dims[i]; q /= d;
+        offset = p / q;
       }
+
+      dst_idx = dst_idx * d + offset;
       p %= q;
     }
 
