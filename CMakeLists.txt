@@ -17,6 +17,17 @@ ENDIF()
 
 include_directories(include)
 
+set(PARROTS_HOME $ENV{PARROTS_HOME})
+
+include_directories(${PARROTS_HOME}/parrots/include/)
+include_directories(${PARROTS_HOME}/parrotsbase/include/)
+include_directories(${PARROTS_HOME}/clue/include/)
+
+find_library(PARROTS_LIB parrots
+        HINTS "${PARROTS_HOME}/parrots/build"
+        "${PARROTS_HOME}/parrots/lib")
+
+
 FIND_PACKAGE(CUDA 6.5)
 MESSAGE(STATUS "cuda found ${CUDA_FOUND}")
 
@@ -64,7 +75,8 @@ IF (WITH_GPU)
 
     MESSAGE(STATUS "Building shared library with GPU support")
 
-    CUDA_ADD_LIBRARY(warpctc SHARED src/ctc_entrypoint.cu src/reduce.cu)
+    CUDA_ADD_LIBRARY(warpctc SHARED src/ctc_entrypoint.cu src/reduce.cu parrots_binding/ctc_loss_layer.cu)
+    TARGET_LINK_LIBRARIES(warpctc ${PARROTS_LIB})
     IF (!Torch_FOUND) 
         TARGET_LINK_LIBRARIES(warpctc ${CUDA_curand_LIBRARY})
     ENDIF()
@@ -114,7 +126,8 @@ ELSE()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2")
     ENDIF()
 
-    ADD_LIBRARY(warpctc SHARED src/ctc_entrypoint.cpp)
+    ADD_LIBRARY(warpctc SHARED src/ctc_entrypoint.cpp parrots_binding/ctc_loss_layer.cpp)
+    TARGET_LINK_LIBRARIES(warpctc ${PARROTS_LIB})
 
     add_executable(test_cpu tests/test_cpu.cpp )
     TARGET_LINK_LIBRARIES(test_cpu warpctc)
