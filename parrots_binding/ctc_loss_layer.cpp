@@ -26,8 +26,8 @@ public:
       PARROTS_CHECKARGS(nparams == 0);
       PARROTS_CHECKARGS(ins.size() == 2);
 
-      PARROTS_CHECKARGS(ins[0].elemType().getPrim() == PARROTS_FLOAT32);
-      PARROTS_CHECKARGS(ins[1].elemType().getPrim() == PARROTS_INT32);
+      PARROTS_CHECKARGS(ins[0].elemType() == float32_);
+      PARROTS_CHECKARGS(ins[1].elemType() == int32_);
 
       //check dimensions
       PARROTS_CHECKARGS(ins[0].ndims() == 3);
@@ -64,16 +64,20 @@ class CTCLossLayer : public Layer<CTCLossLayerProto> {
     // host label
     DataObject hostLabelObj_;
 
+    // buffer for storing dimensions on the device
+    DataObject dimensions_;
+
 public:
     CTCLossLayer(const CTCLossLayerProto& proto, DeviceProxy& deviceProxy,
                  const DataSpecList& inputs, const DataSpecList& outputs)
     : Layer<CTCLossLayerProto>(proto),
       device_p_(deviceProxy),
-      hostLabelObj_(getHostProxy(), inputs[1]){
+      hostLabelObj_(getHostProxy(), inputs[1]),
+      dimensions_(device_p_, DataSpec::array(uint64_, inputs[0].ndims())){
 
       // setup ctc constructs
       ctc_opts_.blank_label = 0;
-      ctc_opts_.loc = (deviceProxy.deviceType() == PARROTS_HOST)?CTC_CPU:CTC_GPU;
+      ctc_opts_.loc = (deviceProxy.arch() == Arch::X86)?CTC_CPU:CTC_GPU;
       if (ctc_opts_.loc == CTC_GPU){
         ctc_opts_.stream = cudaStreamLegacy;
       }else{
@@ -91,6 +95,10 @@ public:
 
       // reserve memery for quick buffer
       device_p_.reserveWorkSpace(workspace_size_);
+
+      auto dims = box(inputs[0].dims(), arrshape(inputs[0].ndims()));
+      copy(dims, dimensions_);
+
     }
 
     void forward(const LayerContext& ctx,
@@ -109,7 +117,7 @@ public:
       copy(hostLabelObj_, bottoms[1].dc.valueObject());
 
       // warp ctc uses a interleaved data layout, we have to first permute the activation tensor to fit its layout
-      permute_dimension(act_buffer.shape3d().pdims(), act_buffer.ndims(), act_buffer.size(),
+      permute_dimension(dimensions_.tdata<size_t>(), act_buffer.ndims(), act_buffer.size(),
                         act_buffer.tdata<float>(), 0, (float)0,
                         bottoms[0].dc.valueObject().tdata<float>(), 1, (float)0,
                         ctc_opts_
@@ -133,7 +141,7 @@ public:
 
 
       auto scale = loss_weight * alpha;
-      permute_dimension(grad_buffer.shape3d().pdims(), grad_buffer.ndims(), grad_buffer.size(),
+      permute_dimension(dimensions_.tdata<size_t>(), grad_buffer.ndims(), grad_buffer.size(),
                         bottomGrads[0].pObj->tdata<float>(), 0, beta,
                         grad_buffer.tdata<float>(), 1, scale,
                         ctc_opts_);
