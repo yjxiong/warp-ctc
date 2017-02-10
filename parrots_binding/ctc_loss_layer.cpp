@@ -34,7 +34,7 @@ public:
       PARROTS_CHECKARGS(ins[1].ndims() == 2);
 
       //batch sizes must be equal
-      PARROTS_CHECKARGS(ins[0].dim(0) == ins[1].dim(1));
+      PARROTS_CHECKARGS(ins[0].numSlices() == ins[1].numSlices());
 
       // num_label must be less than time steps
       PARROTS_CHECKARGS(ins[0].dim(1) >= ins[1].dim(0));
