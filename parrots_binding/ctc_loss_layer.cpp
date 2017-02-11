@@ -1,9 +1,9 @@
 #include "parrots/dnn/layerbase.hpp"
 #include "parrots/datablas.hpp"
+#include "parrots/datareduce.hpp"
 
 #include "ctc.h"
 #include "helper.hpp"
-
 #include <thread>
 
 namespace parrots {
@@ -53,8 +53,7 @@ class CTCLossLayer : public Layer<CTCLossLayerProto> {
 
     ctcOptions ctc_opts_;
 
-    int label_length_;
-    int input_lengths_;
+
     int num_class_;
     int batchsize_;
 
@@ -66,6 +65,9 @@ class CTCLossLayer : public Layer<CTCLossLayerProto> {
 
     // buffer for storing dimensions on the device
     DataObject dimensions_;
+
+    DataObject label_lengths_;
+    DataObject input_lengths_;
 
 public:
     CTCLossLayer(const CTCLossLayerProto& proto, DeviceProxy& deviceProxy,
@@ -86,18 +88,24 @@ public:
 
       // get the dimensions
       num_class_ = inputs[0].dim(0);
-      batchsize_ = inputs[0].dim(1);
-      input_lengths_ = inputs[0].dim(2);
-      label_length_ = inputs[0].dim(0);
+      batchsize_ = inputs[0].dim(2);
 
-      ctcStatus_t status = get_workspace_size(&label_length_, &input_lengths_, num_class_, batchsize_,
+      label_lengths_ = DataObject(getHostProxy(), DataSpec::array(type_<int>(), (size_t)batchsize_));
+      input_lengths_ = DataObject(getHostProxy(), DataSpec::array(type_<int>(), (size_t)batchsize_));
+
+      for (int i = 0; i < batchsize_; ++i) {
+        label_lengths_.tdata<int>()[i] = inputs[1].dim(0);
+        input_lengths_.tdata<int>()[i] = inputs[0].dim(1);
+      }
+
+      ctcStatus_t status = get_workspace_size(label_lengths_.tdata<int>(), input_lengths_.tdata<int>(), num_class_, batchsize_,
                                               ctc_opts_, &workspace_size_);
 
-      // reserve memery for quick buffer
+      // reserve memory for quick buffer
       device_p_.reserveWorkSpace(workspace_size_);
 
       auto dims = box(inputs[0].dims(), arrshape(inputs[0].ndims()));
-      copy(dims, dimensions_);
+      copy(dimensions_, dims);
 
     }
 
@@ -109,12 +117,16 @@ public:
 
       float loss_weight = getScalar<float>(tops[0].dc.gradObject());
 
-      float loss = 0;
+      DataObject costs(getHostProxy(), DataSpec::array(type_<float>(), batchsize_));
 
       ::parrots::internal::QuickBuffer workspace(device_p_, workspace_size_);
 
+      std::cout<<"buffer setup\n";
+
       // prepare data
       copy(hostLabelObj_, bottoms[1].dc.valueObject());
+
+      std::cout<<"data copied\n";
 
       // warp ctc uses a interleaved data layout, we have to first permute the activation tensor to fit its layout
       permute_dimension(dimensions_.tdata<size_t>(), act_buffer.ndims(), act_buffer.size(),
@@ -122,17 +134,29 @@ public:
                         bottoms[0].dc.valueObject().tdata<float>(), 1, (float)0,
                         ctc_opts_
       );
+      std::cout<<"data permuted\n";
 
       auto status = compute_ctc_loss(act_buffer.tdata<float>(), grad_buffer.tdata<float>(),
                                      hostLabelObj_.tdata<int>(),
-                                     &label_length_, &input_lengths_, num_class_, batchsize_,
-                                     &loss, workspace.data(), ctc_opts_);
+                                     label_lengths_.tdata<int>(), input_lengths_.tdata<int>(), num_class_, batchsize_,
+                                     costs.tdata<float>(), workspace.data(), ctc_opts_);
+
+      if (status != 0){
+        std::cout<<ctcGetStatusString(status)<<"\n";
+      }
+
+      setScalar(tops[0].dc.valueObject(), mean(costs));
+      std::cout<<"loss: "<<mean(costs)<<"\n";
+
+      std::cout<<"forward done\n";
     }
 
     void backward(const LayerContext& ctx,
                  const std::vector<LayerInput>& bottoms,
                  const std::vector<LayerInput>& tops,
                  const std::vector<LayerGradOutput>& bottomGrads) override {
+
+      std::cout<<"backward started\n";
       auto grad_buffer = ctx.local.get("grad_buffer", bottoms[0].dc.spec());
 
       float alpha = bottomGrads[0].alpha;
@@ -140,6 +164,7 @@ public:
       float loss_weight = getScalar<float>(tops[0].dc.gradObject());
 
 
+      std::cout<<"backward permuting\n";
       auto scale = loss_weight * alpha;
       permute_dimension(dimensions_.tdata<size_t>(), grad_buffer.ndims(), grad_buffer.size(),
                         bottomGrads[0].pObj->tdata<float>(), 0, beta,

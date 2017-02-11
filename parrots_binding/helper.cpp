@@ -3,12 +3,13 @@
 //
 
 #include "helper.hpp"
+#include <iostream>
 
 void permute_dimension(const size_t* dims, size_t ndim, size_t num,
                        float* dst_data, size_t dst_dim, float beta,
                        const float* src_data, size_t src_dim, float alpha,
                        ctcOptions opts){
-
+  std::cout<<"permuting data\n";
   if (opts.loc == CTC_GPU){
     permute_dimension_gpu(dims, ndim, num, dst_data, dst_dim, beta, src_data, src_dim, alpha);
   }else{
@@ -22,6 +23,7 @@ void permute_dimension_cpu(const size_t* dims, size_t ndim, size_t num,
                            const float* src_data, size_t src_dim, float alpha){
 
   if (dst_dim == src_dim) return;
+
 
   for (size_t src_idx = 0; src_idx < num; ++src_idx){
     size_t src_dim_idx = 0;

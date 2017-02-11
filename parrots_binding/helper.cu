@@ -1,5 +1,4 @@
 #include "helper.hpp"
-#include "helper.cpp"
 
 __global__ void permute_kernel(const size_t* dims, size_t ndim, size_t n,
                           float* dst_data, size_t dst_dim, float beta,

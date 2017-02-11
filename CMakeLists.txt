@@ -7,7 +7,7 @@ ENDIF()
 project(ctc_release)
 
 IF (NOT APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -O2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -O2 -std=c++11")
 ENDIF()
 
 IF (APPLE)
@@ -20,6 +20,7 @@ include_directories(include)
 set(PARROTS_HOME $ENV{PARROTS_HOME})
 
 include_directories(${PARROTS_HOME}/parrots/include/)
+include_directories(${PARROTS_HOME}/parrots/deps/)
 include_directories(${PARROTS_HOME}/parrotsbase/include/)
 include_directories(${PARROTS_HOME}/clue/include/)
 
@@ -74,12 +75,13 @@ ENDIF()
 IF (WITH_GPU)
 
     MESSAGE(STATUS "Building shared library with GPU support")
+    add_definitions(-DWITH_GPU)
+    CUDA_COMPILE(warpctc_obj src/ctc_entrypoint.cu src/reduce.cu
+                                    parrots_binding/helper.cu SHARED)
 
-    CUDA_ADD_LIBRARY(warpctc SHARED src/ctc_entrypoint.cu src/reduce.cu
-                                    parrots_binding/ctc_loss_layer.cu
-                                    parrots_binding/helper.cu)
+    add_library(warpctc SHARED ${warpctc_obj} parrots_binding/ctc_loss_layer.cpp parrots_binding/helper.cpp)
     TARGET_LINK_LIBRARIES(warpctc ${PARROTS_LIB})
-    IF (!Torch_FOUND) 
+    IF (!Torch_FOUND)
         TARGET_LINK_LIBRARIES(warpctc ${CUDA_curand_LIBRARY})
     ENDIF()
 

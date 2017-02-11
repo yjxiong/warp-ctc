@@ -12,7 +12,7 @@ void permute_dimension_cpu(const size_t* dims, size_t ndim, size_t num,
                            float* dst_data, size_t dst_dim, float beta,
                            const float* src_data, size_t src_dim, float alpha);
 
-#ifdef __CUDACC__
+#ifdef WITH_GPU
 void permute_dimension_gpu(const size_t* dims, size_t ndim, size_t num,
                            float* dst_data, size_t dst_dim, float beta,
                            const float* src_data, size_t src_dim, float alpha);
