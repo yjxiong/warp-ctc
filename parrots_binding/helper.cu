@@ -21,17 +21,18 @@ __global__ void permute_kernel(const size_t* dims, size_t ndim, size_t n,
 
       size_t offset;
       size_t d;
+      q /= dims[i];
+
       if (i == src_dim){
-        d = dims[dst_dim]; q /= d;
+        d = dims[dst_dim];
         offset = dst_dim_idx;
       }else if(i == dst_dim){
-        d = dims[src_dim]; q /= d;
+        d = dims[src_dim];
         offset = src_dim_idx;
       }else{
-        d = dims[i]; q /= d;
+        d = dims[i];
         offset = p / q;
       }
-
       dst_idx = dst_idx * d + offset;
       p %= q;
     }

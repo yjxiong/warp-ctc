@@ -9,7 +9,6 @@ void permute_dimension(const size_t* dims, size_t ndim, size_t num,
                        float* dst_data, size_t dst_dim, float beta,
                        const float* src_data, size_t src_dim, float alpha,
                        ctcOptions opts){
-  std::cout<<"permuting data\n";
   if (opts.loc == CTC_GPU){
     permute_dimension_gpu(dims, ndim, num, dst_data, dst_dim, beta, src_data, src_dim, alpha);
   }else{
@@ -33,24 +32,26 @@ void permute_dimension_cpu(const size_t* dims, size_t ndim, size_t num,
       if (i == src_dim) src_dim_idx = p % d;
       if (i == dst_dim) dst_dim_idx = p % d;
       p /= d;
-    }
 
+    }
     size_t dst_idx = 0;
     for (int i = ndim - 1, p = src_idx, q = num; i >= 0; --i){
 
       size_t offset;
       size_t d;
+
+      q /= dims[i];
+
       if (i == src_dim){
-        d = dims[dst_dim]; q /= d;
+        d = dims[dst_dim];
         offset = dst_dim_idx;
       }else if(i == dst_dim){
-        d = dims[src_dim]; q /= d;
+        d = dims[src_dim];
         offset = src_dim_idx;
       }else{
-        d = dims[i]; q /= d;
+        d = dims[i];
         offset = p / q;
       }
-
       dst_idx = dst_idx * d + offset;
       p %= q;
     }
