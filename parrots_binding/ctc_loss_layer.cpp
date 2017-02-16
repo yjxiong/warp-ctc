@@ -20,7 +20,7 @@ public:
     bool normalize_;
 
     CTCLossLayerProto(const SSElement& attrs) : LayerProto(attrs){
-      SSAttrs(attrs_).get("normalize", normalize_, true);
+      SSAttrs(attrs_).get("normalize", normalize_, false);
     }
 
     PARROTS_LAYER_ISLOSS;
@@ -170,6 +170,7 @@ public:
       float beta = bottomGrads[0].beta;
       float loss_weight = getScalar<float>(tops[0].dc.gradObject());
       float norm_term = (normalized_grad_)?(float(1) / (float)bottoms[0].dc.spec().dim(1)):(float)1.0;
+      norm_term /= (float)batchsize_;
 
 
       auto scale = loss_weight * alpha * norm_term;
